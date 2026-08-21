@@ -1,0 +1,59 @@
+import Link from 'next/link';
+import { LEYDE, whatsappLink } from '../lib/config';
+
+export default function Footer() {
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <footer className="site-foot">
+      <div className="container">
+        <div>
+          <div className="foot-logo">{LEYDE.nomeLoja}</div>
+          <p style={{ fontSize: '13px', color: 'rgba(255,255,255,.7)', maxWidth: '260px' }}>
+            Cosméticos e perfumaria de marcas selecionadas. Entregas em {LEYDE.cidade} — {LEYDE.uf}.
+          </p>
+          <p style={{ fontSize: '13px', marginTop: '10px' }}>WhatsApp: {LEYDE.whatsappExibicao}</p>
+          <p style={{ fontSize: '13px' }}>Instagram: @{LEYDE.instagram}</p>
+        </div>
+        <div>
+          <h4>Categorias</h4>
+          <ul>
+            {LEYDE.categorias.map((categoria) => (
+              <li key={categoria.id}>
+                <Link href={`/categoria?cat=${categoria.id}`}>{categoria.nome}</Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h4>Atendimento</h4>
+          <ul>
+            {LEYDE.horario.map((item) => (
+              <li key={item.dias}>
+                {item.dias}: {item.horas}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h4>Sobre</h4>
+          <ul>
+            <li>
+              <a href="#categorias">Como comprar</a>
+            </li>
+            <li>
+              <a href={whatsappLink('Olá! Gostaria de saber mais sobre a loja.')} target="_blank" rel="noopener noreferrer">
+                Fale conosco
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div className="foot-bottom">
+        <div className="container">
+          {currentYear} © {LEYDE.nomeLoja} — {LEYDE.cidade}/{LEYDE.uf}
+        </div>
+      </div>
+    </footer>
+  );
+}

@@ -1,0 +1,98 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { LEYDE, whatsappLink } from '../lib/config';
+import { formatarBRL } from '../lib/products';
+import { formatarNumeroPedido, montarMensagemPedido } from '../lib/order';
+
+export default function ConfirmacaoClient({ pedidoQuery }) {
+  const [pedido, setPedido] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem('leyde_pedido');
+    if (stored) {
+      try {
+        setPedido(JSON.parse(stored));
+      } catch {
+        setPedido(null);
+      }
+    }
+    setLoaded(true);
+  }, []);
+
+  const numeroDisplay = useMemo(() => {
+    const number = pedido?.numero || pedidoQuery;
+    return formatarNumeroPedido(number);
+  }, [pedido, pedidoQuery]);
+
+  const total = pedido?.total ?? null;
+  const resumoItens = pedido?.itens || [];
+
+  const mensagem = useMemo(() => {
+    if (!pedido) return 'Olá! Gostaria de confirmar meu pedido.';
+    return montarMensagemPedido(pedido);
+  }, [pedido]);
+
+  if (!loaded) {
+    return (
+      <main className="container">
+        <h1 className="pagina-titulo">Pedido confirmado</h1>
+        <div style={{ textAlign: 'center', padding: '50px 0', color: 'var(--muted)' }}>
+          Carregando confirmação...
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="container">
+      <div className="breadcrumb">
+        <Link href="/">Início</Link> / Pedido confirmado
+      </div>
+      <h1 className="pagina-titulo">Pedido confirmado</h1>
+
+      <div className="confirmacao">
+        <div className="confirmacao-box">
+          <p className="confirmacao-numero">{numeroDisplay}</p>
+          <h2>Seu pedido foi salvo com sucesso.</h2>
+          <p>Agora finalize o contato no WhatsApp para combinarmos entrega, pagamento e detalhes do pedido.</p>
+          <a className="btn solid" href={whatsappLink(mensagem)} target="_blank" rel="noopener noreferrer">
+            Abrir WhatsApp
+          </a>
+        </div>
+
+        {pedido ? (
+          <aside className="resumo">
+            <h3>Resumo do pedido</h3>
+            {resumoItens.map((item) => (
+              <div key={item.slug} className="linha">
+                <span>
+                  {item.nome.slice(0, 40)} × {item.qtd}
+                </span>
+                <span>{item.preco > 0 ? formatarBRL(item.preco * item.qtd) : '—'}</span>
+              </div>
+            ))}
+            <div className="linha">
+              <span>Subtotal</span>
+              <span>{pedido.subtotal ? formatarBRL(pedido.subtotal) : 'a definir'}</span>
+            </div>
+            <div className="linha">
+              <span>Entrega</span>
+              <span>{pedido.entrega == null ? 'a combinar' : formatarBRL(pedido.entrega)}</span>
+            </div>
+            <div className="linha total">
+              <span>Total</span>
+              <span>{total == null ? 'a definir' : formatarBRL(total)}</span>
+            </div>
+          </aside>
+        ) : (
+          <div className="confirmacao-box">
+            <p>Não encontramos os detalhes do pedido nesta sessão.</p>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

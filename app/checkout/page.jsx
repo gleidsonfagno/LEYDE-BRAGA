@@ -1,0 +1,385 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { useCart } from '../../components/CartContext';
+import { LEYDE, whatsappLink } from '../../lib/config';
+import { montarMensagemPedido } from '../../lib/order';
+import { buscarProduto, formatarBRL } from '../../lib/products';
+import { normalizeText } from '../../lib/text';
+
+function paymentIcon(label) {
+  const key = normalizeText(label).replace(/[^a-z0-9]/g, '');
+  if (key.includes('pix')) {
+    return (
+      <svg viewBox="0 0 512 512" aria-hidden="true">
+        <defs>
+          <linearGradient id="pg-pix-g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#32bcad" />
+            <stop offset="1" stopColor="#12294a" />
+          </linearGradient>
+        </defs>
+        <path
+          fill="url(#pg-pix-g)"
+          d="M242.4 292.5C247.8 287.1 257.1 287.1 262.5 292.5L339.5 369.5C353.7 383.7 372.6 391.5 392.6 391.5H407.7L310.6 488.6C280.3 518.1 231.1 518.1 200.8 488.6L103.3 391.2H112.6C132.6 391.2 151.5 383.4 165.7 369.2L242.4 292.5zM262.5 218.9C256.1 224.4 247.9 224.5 242.4 218.9L165.7 142.2C151.5 127.1 132.6 120.2 112.6 120.2H103.3L200.7 22.76C231.1-7.586 280.3-7.586 310.6 22.76L407.8 119.9H392.6C372.6 119.9 353.7 127.7 339.5 141.9L262.5 218.9zM112.6 142.7C126.4 142.7 139.1 148.3 149.7 158.1L226.4 234.8C233.6 241.1 243 245.6 252.5 245.6C261.9 245.6 271.3 241.1 278.5 234.8L355.5 157.8C365.3 148.1 378.8 142.5 392.6 142.5H430.3L488.6 200.8C518.9 231.1 518.9 280.3 488.6 310.6L430.3 368.9H392.6C378.8 368.9 365.3 363.3 355.5 353.5L278.5 276.5C264.6 262.6 240.3 262.6 226.4 276.6L149.7 353.2C139.1 363 126.4 368.6 112.6 368.6H80.78L22.76 310.6C-7.586 280.3-7.586 231.1 22.76 200.8L80.78 142.7H112.6z"
+        />
+      </svg>
+    );
+  }
+  if (key.includes('cartao')) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="4.75" width="20" height="14.5" rx="2.5" />
+        <path d="M2 9.5h20" />
+        <path d="M6 15h4" />
+      </svg>
+    );
+  }
+  if (key.includes('dinheiro')) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2.5" y="5.75" width="19" height="12.5" rx="2" />
+        <circle cx="12" cy="12" r="2.75" />
+        <path d="M6 9.2h.01M18 14.8h.01" />
+      </svg>
+    );
+  }
+  if (key.includes('boleto')) {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2.5" y="4" width="19" height="16" rx="2" />
+        <path d="M3.5 9h17" />
+        <path d="M6 12v4.5M8.4 12v4.5M10.8 12v3M13.2 12v4.5M15.6 12v3M18 12v4.5" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 8v8M8.5 10.5h6" />
+    </svg>
+  );
+}
+
+export default function CheckoutPage() {
+  const { cart, limpar, ready } = useCart();
+  const [linhas, setLinhas] = useState([]);
+  const [entregaValor, setEntregaValor] = useState(0);
+  const [entregaNull, setEntregaNull] = useState(false);
+  const [entregaMsg, setEntregaMsg] = useState('Digite o CEP ou o bairro para calcular a entrega.');
+  const [entregaMsgColor, setEntregaMsgColor] = useState('var(--muted)');
+  const [formData, setFormData] = useState({
+    nome: '',
+    whatsapp: '',
+    cep: '',
+    estado: 'PA',
+    cidade: 'Altamira',
+    bairro: '',
+    rua: '',
+    numero: '',
+    complemento: '',
+    pagamento: LEYDE.formasPagamento[0] || '',
+  });
+  const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+
+  const bairroCadastrado = (nomeBairro) => {
+    if (!nomeBairro) return null;
+    const normalized = normalizeText(nomeBairro);
+    return (LEYDE.bairrosEntrega || []).find((bairro) => normalizeText(bairro.nome) === normalized) || null;
+  };
+
+  const calcularEntrega = (bairro) => {
+    const bairroEncontrado = bairroCadastrado(bairro);
+    if (bairroEncontrado) {
+      setEntregaValor(bairroEncontrado.valor || 0);
+      setEntregaNull(false);
+      setEntregaMsg(`Bairro cadastrado: entrega ${bairroEncontrado.valor > 0 ? formatarBRL(bairroEncontrado.valor) : 'grátis'}.`);
+      setEntregaMsgColor('var(--success)');
+    } else if (bairro) {
+      setEntregaNull(true);
+      setEntregaValor(0);
+      setEntregaMsg('Este bairro não está no cadastro de entrega. Combinamos a entrega pelo WhatsApp.');
+      setEntregaMsgColor('var(--accent-2)');
+    } else {
+      setEntregaNull(false);
+      setEntregaValor(0);
+      setEntregaMsg('Digite o CEP ou o bairro para calcular a entrega.');
+      setEntregaMsgColor('var(--muted)');
+    }
+  };
+
+  useEffect(() => {
+    if (!ready) return;
+    const validItems = cart
+      .map((item) => {
+        const produto = buscarProduto(item.slug);
+        return produto && produto.disponibilidade !== 'indisponivel' && item.qtd > 0 ? { produto, qtd: item.qtd } : null;
+      })
+      .filter(Boolean);
+
+    setLinhas(validItems);
+  }, [cart, ready]);
+
+  useEffect(() => {
+    calcularEntrega(formData.bairro);
+  }, [formData.bairro]);
+
+  const subtotal = linhas.reduce((sum, linha) => sum + (linha.produto.preco || 0) * linha.qtd, 0);
+  const temPrecos = linhas.every((linha) => linha.produto.preco > 0);
+
+  const buscarCEP = async () => {
+    const cep = formData.cep.replace(/\D/g, '');
+    if (cep.length !== 8) return;
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+      const data = await response.json();
+      if (!data.erro) {
+        setFormData((previous) => ({
+          ...previous,
+          rua: data.logradouro || '',
+          bairro: data.bairro || '',
+          cidade: data.localidade || 'Altamira',
+          estado: data.uf || 'PA',
+        }));
+      } else {
+        setEntregaMsg('CEP não encontrado. Preencha o endereço manualmente.');
+        setEntregaMsgColor('var(--accent-2)');
+      }
+    } catch {
+      setEntregaMsg('Não foi possível consultar o CEP agora. Preencha manualmente.');
+      setEntregaMsgColor('var(--accent-2)');
+    }
+  };
+
+  const validate = () => {
+    const nextErrors = {};
+    if (!formData.nome.trim()) nextErrors.nome = 'Informe seu nome.';
+    if (!formData.whatsapp.trim()) nextErrors.whatsapp = 'Informe seu WhatsApp.';
+    if (!formData.rua.trim()) nextErrors.rua = 'Informe a rua.';
+    if (!formData.numero.trim()) nextErrors.numero = 'Informe o número.';
+    if (!formData.bairro.trim()) nextErrors.bairro = 'Informe o bairro.';
+    if (!formData.pagamento) nextErrors.pagamento = 'Selecione uma forma de pagamento.';
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  };
+
+  const handleChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((previous) => ({ ...previous, [name]: value }));
+    if (errors[name]) {
+      setErrors((previous) => ({ ...previous, [name]: '' }));
+    }
+  };
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    if (!validate()) return;
+
+    setSubmitting(true);
+
+    const previous = parseInt(window.localStorage.getItem('leyde_pedido_contador') || '0', 10);
+    const nextOrder = previous + 1;
+    window.localStorage.setItem('leyde_pedido_contador', String(nextOrder));
+
+    const entregaFinal = entregaNull ? null : entregaValor;
+    const pedido = {
+      numero: nextOrder,
+      nome: formData.nome.trim(),
+      whatsapp: formData.whatsapp.trim(),
+      endereco: {
+        cep: formData.cep.trim(),
+        estado: formData.estado,
+        cidade: formData.cidade,
+        bairro: formData.bairro.trim(),
+        rua: formData.rua.trim(),
+        numero: formData.numero.trim(),
+        complemento: formData.complemento.trim(),
+      },
+      pagamento: formData.pagamento || 'a combinar',
+      entrega: entregaFinal,
+      itens: linhas.map((linha) => ({ slug: linha.produto.slug, nome: linha.produto.nome, qtd: linha.qtd, preco: linha.produto.preco })),
+      subtotal,
+      total: temPrecos ? subtotal + (entregaFinal || 0) : null,
+      data: new Date().toISOString(),
+    };
+
+    window.localStorage.setItem('leyde_pedido', JSON.stringify(pedido));
+    limpar();
+    window.location.href = whatsappLink(montarMensagemPedido(pedido));
+  };
+
+  if (!linhas.length) {
+    if (!ready) {
+      return (
+        <main className="container">
+          <h1 className="pagina-titulo">Finalizar pedido</h1>
+          <div style={{ textAlign: 'center', padding: '50px 0', color: 'var(--muted)' }}>
+            Carregando checkout...
+          </div>
+        </main>
+      );
+    }
+
+    return (
+      <main className="container">
+        <div className="breadcrumb">
+          <Link href="/">Início</Link> / <Link href="/carrinho">Carrinho</Link> / Finalizar pedido
+        </div>
+        <h1 className="pagina-titulo">Finalizar pedido</h1>
+        <div style={{ textAlign: 'center', padding: '50px 0', color: 'var(--muted)' }}>
+          <p style={{ fontSize: '18px', marginBottom: '8px' }}>Seu carrinho está vazio.</p>
+          <Link className="btn solid" href="/">
+            Continuar comprando
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="container">
+      <div className="breadcrumb">
+        <Link href="/">Início</Link> / <Link href="/carrinho">Carrinho</Link> / Finalizar pedido
+      </div>
+      <h1 className="pagina-titulo">Finalizar pedido</h1>
+
+      <form id="form-checkout" onSubmit={handleSubmit} noValidate>
+        <div className="pg-layout">
+          <div>
+            <section style={{ marginBottom: '26px' }}>
+              <h2 className="pg-titulo">1. Seus dados</h2>
+              <div className="form-grupo">
+                <label htmlFor="f-nome">Nome completo *</label>
+                <input id="f-nome" name="nome" required placeholder="Como podemos te chamar?" value={formData.nome} onChange={handleChange} />
+                {errors.nome ? <p className="form-erro">{errors.nome}</p> : null}
+              </div>
+              <div className="form-grupo">
+                <label htmlFor="f-whatsapp">WhatsApp *</label>
+                <input
+                  id="f-whatsapp"
+                  name="whatsapp"
+                  required
+                  inputMode="tel"
+                  placeholder="(94) 91234-5678"
+                  value={formData.whatsapp}
+                  onChange={handleChange}
+                />
+                {errors.whatsapp ? <p className="form-erro">{errors.whatsapp}</p> : null}
+              </div>
+            </section>
+
+            <section style={{ marginBottom: '26px' }}>
+              <h2 className="pg-titulo">2. Endereço (Altamira — PA)</h2>
+              <div className="form-col-3">
+                <div className="form-grupo">
+                  <label htmlFor="f-cep">CEP *</label>
+                  <input
+                    id="f-cep"
+                    name="cep"
+                    required
+                    inputMode="numeric"
+                    placeholder="00000-000"
+                    value={formData.cep}
+                    onChange={handleChange}
+                    onBlur={buscarCEP}
+                  />
+                </div>
+                <div className="form-grupo">
+                  <label htmlFor="f-estado">Estado</label>
+                  <input id="f-estado" name="estado" value={formData.estado} readOnly style={{ background: 'var(--surface)' }} />
+                </div>
+                <div className="form-grupo">
+                  <label htmlFor="f-cidade">Cidade</label>
+                  <input id="f-cidade" name="cidade" value={formData.cidade} readOnly style={{ background: 'var(--surface)' }} />
+                </div>
+              </div>
+              <div className="form-grupo">
+                <label htmlFor="f-bairro">Bairro *</label>
+                <input id="f-bairro" name="bairro" required placeholder="Ex.: Centro" value={formData.bairro} onChange={handleChange} />
+                {errors.bairro ? <p className="form-erro">{errors.bairro}</p> : null}
+              </div>
+              <div className="form-col">
+                <div className="form-grupo">
+                  <label htmlFor="f-rua">Rua *</label>
+                  <input id="f-rua" name="rua" required placeholder="Nome da rua" value={formData.rua} onChange={handleChange} />
+                  {errors.rua ? <p className="form-erro">{errors.rua}</p> : null}
+                </div>
+                <div className="form-grupo">
+                  <label htmlFor="f-numero">Número *</label>
+                  <input id="f-numero" name="numero" required placeholder="Nº" value={formData.numero} onChange={handleChange} />
+                  {errors.numero ? <p className="form-erro">{errors.numero}</p> : null}
+                </div>
+              </div>
+              <div className="form-grupo">
+                <label htmlFor="f-complemento">Complemento</label>
+                <input
+                  id="f-complemento"
+                  name="complemento"
+                  placeholder="Apto, bloco, referência..."
+                  value={formData.complemento}
+                  onChange={handleChange}
+                />
+              </div>
+              <p id="entrega-msg" style={{ fontSize: '13px', color: entregaMsgColor, marginTop: '4px' }}>
+                {entregaMsg}
+              </p>
+            </section>
+
+            <section>
+              <h2 className="pg-titulo">3. Forma de pagamento</h2>
+              <div id="pagamento-area">
+                <div className="pagamento-opcoes" id="pag-opcoes">
+                  {LEYDE.formasPagamento.map((forma) => (
+                    <label key={forma}>
+                      <input
+                        type="radio"
+                        name="pagamento"
+                        value={forma}
+                        checked={formData.pagamento === forma}
+                        onChange={handleChange}
+                      />
+                      <span className="pg-ico">{paymentIcon(forma)}</span>
+                      <span>{forma}</span>
+                    </label>
+                  ))}
+                </div>
+                {errors.pagamento ? <p className="form-erro">{errors.pagamento}</p> : null}
+              </div>
+            </section>
+          </div>
+
+          <aside className="resumo">
+            <h3>Resumo do pedido</h3>
+            <div id="resumo-linhas">
+              {linhas.map((linha) => (
+                <div key={linha.produto.slug} className="linha">
+                  <span>
+                    {linha.produto.nome.slice(0, 40)} × {linha.qtd}
+                  </span>
+                  <span>{linha.produto.preco > 0 ? formatarBRL(linha.produto.preco * linha.qtd) : '—'}</span>
+                </div>
+              ))}
+            </div>
+            <div className="linha" id="linha-subtotal">
+              <span>Subtotal</span>
+              <span id="r-subtotal">{temPrecos ? formatarBRL(subtotal) : 'a definir'}</span>
+            </div>
+            <div className="linha" id="linha-entrega">
+              <span>Entrega</span>
+              <span id="r-entrega">{entregaNull ? 'consultar' : entregaValor > 0 ? formatarBRL(entregaValor) : 'Grátis'}</span>
+            </div>
+            <div className="linha total">
+              <span>Total</span>
+              <span id="r-total">{temPrecos ? formatarBRL(subtotal + (entregaNull ? 0 : entregaValor)) : 'a definir'}</span>
+            </div>
+            <button type="submit" className="btn solid block" id="btn-confirmar" disabled={submitting}>
+              {submitting ? 'Processando...' : 'Confirmar pedido'}
+            </button>
+            <div className="aviso">Ao confirmar, você será encaminhado ao WhatsApp para finalizar a compra.</div>
+          </aside>
+        </div>
+      </form>
+    </main>
+  );
+}

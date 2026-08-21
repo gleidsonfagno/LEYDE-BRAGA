@@ -1,0 +1,68 @@
+@import url('/assets/css/loja.css');
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/assets/fonts/amakha.vtexassets.com/Poppins-Regular___75596f96bdb5d5fb12ccea6548367826-3f449819bd.woff2')
+    format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/assets/fonts/amakha.vtexassets.com/Poppins-Medium___ba2a86b77ba113a2beeec13f71b2362f-a3a0053b25.woff2')
+    format('woff2');
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/assets/fonts/amakha.vtexassets.com/Poppins-SemiBold___8885e92c2306750c0ed422d86e7472cf-286f0da35b.woff2')
+    format('woff2');
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Poppins';
+  src: url('/assets/fonts/amakha.vtexassets.com/Poppins-Bold___1b2ba2bb92fedb0b8bc3e629c218671d-d0922fb62d.woff2')
+    format('woff2');
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('/assets/fonts/amakha.vtexassets.com/PlayfairDisplay-Regular___8f55b89a4d1f5ccddb16705e9601a8aa-eb2a44293a.woff2')
+    format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('/assets/fonts/amakha.vtexassets.com/PlayfairDisplay-Bold___834f92dfe6cefbb60b95111243810d90-efbbf77cf3.woff2')
+    format('woff2');
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('/assets/fonts/amakha.vtexassets.com/PlayfairDisplay-Italic___3c4cf70c33b4a3d66140fe18d1030fa5-2a7ea5e17a.woff2')
+    format('woff2');
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --script: 'Playfair Display', Georgia, serif;
+}
